@@ -1,4 +1,3 @@
-name: Daily MA Report
 
 # 這個檔案控制「什麼時候」以及「怎麼」自動執行 generate_report.py
 
