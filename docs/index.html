@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>族群 x 大盤 均線強弱分析</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+TC:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap');
+
+:root{
+  --bg:#12151a;
+  --bg-panel:#1a1f27;
+  --bg-panel-2:#20262f;
+  --border:#2b3340;
+  --text:#e7e9ec;
+  --text-dim:#8b93a3;
+  --text-faint:#5c6472;
+  --strong:#e2574c;
+  --strong-bg:rgba(226,87,76,0.14);
+  --weak:#3fae72;
+  --weak-bg:rgba(63,174,114,0.14);
+  --signal:#e0ab3f;
+  --signal-bg:rgba(224,171,63,0.16);
+  --accent:#5b8def;
+}
+
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+html{scroll-behavior:smooth;}
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-family:'IBM Plex Sans TC', system-ui, sans-serif;
+  padding:28px 20px 60px;
+  min-width:320px;
+}
+.wrap{max-width:1240px;margin:0 auto;}
+
+.hero{
+  display:flex; flex-direction:column; gap:6px;
+  padding-bottom:22px; margin-bottom:22px;
+  border-bottom:1px solid var(--border);
+}
+.hero .eyebrow{
+  font-family:'IBM Plex Mono', monospace;
+  font-size:11px; letter-spacing:.14em; text-transform:uppercase;
+  color:var(--accent);
+}
+.hero h1{
+  font-size:26px; font-weight:700; margin:2px 0 4px;
+  letter-spacing:-.01em;
+}
+.hero p{
+  margin:0; color:var(--text-dim); font-size:13.5px; line-height:1.6;
+}
+
+.bench-row{display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:30px;}
+@media (max-width:720px){.bench-row{grid-template-columns:1fr;}}
+
+.bench-card{
+  background:var(--bg-panel);
+  border:1px solid var(--border);
+  border-radius:10px;
+  padding:16px 18px;
+}
+.bench-top{display:flex; justify-content:space-between; align-items:center; margin-bottom:2px;}
+.bench-name{font-size:14px; font-weight:600;}
+.bench-date-row{font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:var(--text-faint); margin-bottom:10px;}
+.chart-link{
+  font-size:10.5px; font-weight:600; color:var(--accent); text-decoration:none;
+  border:1px solid rgba(91,141,239,.4); border-radius:20px; padding:3px 9px;
+  white-space:nowrap;
+}
+.chart-link:hover{background:rgba(91,141,239,.12);}
+.bench-price{
+  font-family:'IBM Plex Mono',monospace; font-size:24px; font-weight:600;
+  margin-bottom:12px;
+}
+.bench-price .sub{font-size:12px; color:var(--text-dim); font-weight:400; margin-left:8px;}
+
+.ladder{display:flex; gap:6px; margin-bottom:10px;}
+.dot-wrap{flex:1; text-align:center;}
+.dot-label{font-size:9.5px; color:var(--text-faint); margin-bottom:4px; font-family:'IBM Plex Mono',monospace;}
+.dot{
+  width:100%; padding:5px 2px; border-radius:6px;
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px;
+}
+.dot.above{background:var(--strong-bg); color:var(--strong); border:1px solid rgba(226,87,76,.35);}
+.dot.below{background:var(--weak-bg); color:var(--weak); border:1px solid rgba(63,174,114,.35);}
+.dot-arrow{font-size:10px; line-height:1;}
+.dot-val{font-family:'IBM Plex Mono',monospace; font-size:9.5px; font-weight:600; line-height:1.2; white-space:nowrap;}
+
+.bench-foot{
+  display:flex; justify-content:space-between;
+  font-size:11.5px; color:var(--text-dim);
+  padding-top:10px; border-top:1px dashed var(--border);
+}
+.bench-foot b{color:var(--text); font-family:'IBM Plex Mono',monospace;}
+
+.group-card{
+  background:var(--bg-panel);
+  border:1px solid var(--border);
+  border-radius:10px;
+  margin-bottom:22px;
+  overflow:hidden;
+  scroll-margin-top:16px;
+}
+.group-head{
+  display:flex; align-items:center; justify-content:space-between;
+  padding:14px 18px; border-bottom:1px solid var(--border);
+  background:var(--bg-panel-2);
+}
+.group-head h2{font-size:15px; font-weight:600; margin:0;}
+.group-head .count{font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--text-dim);}
+
+.table-scroll{overflow-x:auto;}
+table{border-collapse:collapse; width:100%; min-width:640px; table-layout:fixed; font-size:11px;}
+thead th{
+  position:sticky; top:0;
+  background:var(--bg-panel-2);
+  color:var(--text-dim);
+  font-weight:600; font-size:9.5px; letter-spacing:.01em;
+  text-align:center; padding:7px 2px;
+  border-bottom:1px solid var(--border);
+  line-height:1.25;
+}
+thead th.left{text-align:left; padding-left:8px;}
+thead th.col-code{width:9%;}
+thead th.col-name{width:11%;}
+thead th.col-num{width:10.3%;}
+thead th.col-cnt{width:8%;}
+tbody td{
+  padding:4px 2px; text-align:center;
+  border-bottom:1px solid var(--border);
+  font-family:'IBM Plex Mono',monospace;
+}
+tbody td.left{text-align:left; font-family:'IBM Plex Sans TC',sans-serif; padding-left:8px;}
+tbody tr:hover{background:rgba(255,255,255,0.02);}
+
+td.code{color:var(--text-dim); white-space:nowrap; font-size:10.5px;}
+td.name{font-weight:600; white-space:nowrap; font-size:11.5px;}
+.stock-link{color:var(--text); text-decoration:none; border-bottom:1px dashed var(--text-faint);}
+.stock-link:hover{color:var(--accent); border-bottom-color:var(--accent);}
+.date-tag{font-size:8.5px; color:var(--text-faint); margin-top:2px; font-family:'IBM Plex Mono',monospace;}
+
+.data-cell{
+  width:100%; max-width:58px; margin:0 auto; background:#0f1216; border:1px solid var(--border);
+  color:var(--text); border-radius:4px; padding:4px 2px;
+  font-family:'IBM Plex Mono',monospace; font-size:10.5px; text-align:center;
+}
+.data-cell.above{background:var(--strong-bg); border-color:rgba(226,87,76,.4); color:var(--strong); font-weight:600;}
+.data-cell.below{background:var(--weak-bg); border-color:rgba(63,174,114,.4); color:var(--weak); font-weight:600;}
+
+.count-badge{
+  display:inline-block; min-width:24px; padding:2px 5px; border-radius:20px;
+  font-weight:700; font-size:10.5px; font-family:'IBM Plex Mono',monospace;
+}
+.badge-yn{
+  font-size:9.5px; font-weight:600; padding:2px 5px; border-radius:20px;
+  font-family:'IBM Plex Sans TC',sans-serif; white-space:nowrap;
+}
+.badge-yes{background:var(--signal-bg); color:var(--signal);}
+.badge-no{background:transparent; color:var(--text-faint);}
+
+.group-summary{
+  padding:14px 18px 16px;
+  border-top:1px solid var(--border);
+  background:var(--bg-panel-2);
+}
+.summary-title{font-size:11px; color:var(--text-dim); margin-bottom:10px; letter-spacing:.03em;}
+.summary-grid{display:grid; grid-template-columns:repeat(6,1fr); gap:8px;}
+@media (max-width:720px){.summary-grid{grid-template-columns:repeat(3,1fr);}}
+.summary-cell{
+  background:#0f1216; border:1px solid var(--border); border-radius:8px;
+  padding:8px 6px; text-align:center;
+}
+.summary-cell .period{font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--text-faint);}
+.summary-cell .pct{font-family:'IBM Plex Mono',monospace; font-size:16px; font-weight:700; margin:3px 0;}
+.summary-cell .count-sub{font-family:'IBM Plex Mono',monospace; font-size:9.5px; color:var(--text-faint); margin-bottom:2px;}
+.summary-cell.diverge{border-color:rgba(224,171,63,.5); background:var(--signal-bg);}
+.summary-cell .flag{font-size:9.5px; color:var(--signal); font-weight:600; min-height:12px;}
+
+.legend{
+  display:flex; gap:18px; flex-wrap:wrap;
+  margin-top:24px; padding-top:16px; border-top:1px solid var(--border);
+  font-size:11.5px; color:var(--text-dim);
+}
+.legend span{display:inline-flex; align-items:center; gap:6px;}
+.legend i{width:10px; height:10px; border-radius:3px; display:inline-block;}
+.legend i.above{background:var(--strong);}
+.legend i.below{background:var(--weak);}
+.legend i.signal{background:var(--signal);}
+
+.export-bar{
+  display:flex; align-items:center; gap:12px;
+  background:var(--bg-panel); border:1px solid var(--border); border-radius:10px;
+  padding:12px 16px; margin-bottom:22px;
+}
+.export-btn{
+  background:var(--accent); color:#0b1220; border:none; border-radius:8px;
+  padding:9px 16px; font-size:13px; font-weight:600; cursor:pointer;
+  font-family:'IBM Plex Sans TC',sans-serif;
+}
+.export-btn:hover{opacity:.9;}
+.export-hint{font-size:12px; color:var(--text-dim); flex:1;}
+.export-status{font-size:12px; color:var(--strong); font-weight:600; min-width:80px; text-align:right;}
+
+.overview-card{
+  background:var(--bg-panel); border:1px solid var(--border); border-radius:10px;
+  padding:16px 18px; margin-bottom:22px;
+}
+.overview-title{font-size:13px; font-weight:600; margin-bottom:2px;}
+.overview-sub{font-size:11px; color:var(--text-dim); margin-bottom:14px;}
+.overview-row{
+  display:flex; align-items:center; gap:12px; padding:8px 0;
+  border-bottom:1px solid var(--border);
+}
+.overview-row:last-child{border-bottom:none;}
+.overview-rank{
+  font-family:'IBM Plex Mono',monospace; font-size:12px; font-weight:700; color:var(--text-faint);
+  width:20px; text-align:center; flex-shrink:0;
+}
+.overview-name{font-size:13px; font-weight:600; width:110px; flex-shrink:0;}
+.overview-link{color:var(--text); text-decoration:none; border-bottom:1px dashed var(--text-faint);}
+.overview-link:hover{color:var(--accent); border-bottom-color:var(--accent);}
+.overview-barwrap{flex:1; background:#0f1216; border-radius:6px; height:20px; overflow:hidden; position:relative;}
+.overview-bar{height:100%; border-radius:6px; transition:width .2s;}
+.overview-pct{
+  font-family:'IBM Plex Mono',monospace; font-size:12px; font-weight:700;
+  width:48px; text-align:right; flex-shrink:0;
+}
+.overview-diverge{
+  font-size:9.5px; color:var(--signal); background:var(--signal-bg);
+  padding:2px 7px; border-radius:20px; white-space:nowrap; flex-shrink:0;
+}
+
+.data-source-note{
+  font-size:10.5px; color:var(--text-faint); margin-top:6px;
+}
+
+@media (max-width:480px){
+  body{padding:20px 12px 50px;}
+  .overview-name{width:72px; font-size:12px;}
+  .overview-pct{width:38px; font-size:11px;}
+  .overview-diverge{display:none;}
+  .overview-rank{width:16px;}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="hero">
+    <div class="eyebrow">Prototype · 均線強弱背離篩選</div>
+    <h1>族群 x 大盤 均線強弱分析</h1>
+    <p>判斷族群個股是否站上 5/10/20/60/120/240 日均線,並與加權指數、櫃買指數的均線位置比較,找出強於大盤之族群。</p>
+    <p class="data-source-note">資料來源: Yahoo Finance (yfinance) · 產生時間: 2026-08-27 04:07</p>
+  </div>
+
+  <div class="bench-row" id="benchRow"></div>
+
+  <div class="export-bar">
+    <span class="export-hint" id="exportHint">按這裡可以把目前畫面上的個股資料複製成一段文字,方便留存或核對。</span>
+    <span class="export-status" id="exportStatus"></span>
+    <button class="export-btn" id="exportBtn" type="button">複製全部資料</button>
+  </div>
+
+  <div id="overviewRoot"></div>
+
+  <div id="groupsRoot"></div>
+
+  <div class="legend">
+    <span><i class="above"></i>站上均線</span>
+    <span><i class="below"></i>跌破均線</span>
+    <span><i class="signal"></i>族群多數站上,但大盤已跌破 → 背離訊號</span>
+  </div>
+
+</div>
+
+<script>
+const MA_PERIODS = [5,10,20,60,120,240];
+
+const benchmarks = [{"key": "twii", "name": "加權指數 (TAIEX)", "date": "08/27 收盤", "close": 46227.01, "ma": {"5": 45443.14, "10": 45384.58, "20": 44926.79, "60": 44897.01, "120": 41283.88, "240": 34951.14}, "chartUrl": "https://www.wantgoo.com/index/0000"}, {"key": "otc", "name": "櫃買指數 (TPEx)", "date": "10/12 收盤", "close": 269.45, "ma": {"5": null, "10": null, "20": null, "60": null, "120": null, "240": null}, "chartUrl": "https://www.wantgoo.com/index/two"}];
+
+const groups = [{"name": "記憶體", "stocks": [{"code": "2408", "name": "南亞科", "date": "08/27", "close": 545.0, "high": 555.0, "ma5": 520.2, "ma10": 515.0, "ma20": 484.57, "ma60": 437.18, "ma120": 347.72, "ma240": 257.52, "high52w": 555.0}, {"code": "2344", "name": "華邦電", "date": "08/27", "close": 187.0, "high": 190.0, "ma5": 181.1, "ma10": 179.15, "ma20": 171.82, "ma60": 174.43, "ma120": 142.61, "ma240": 106.03, "high52w": 233.5}, {"code": "2337", "name": "旺宏", "date": "08/27", "close": 128.5, "high": 131.0, "ma5": 124.5, "ma10": 125.2, "ma20": 124.5, "ma60": 137.0, "ma120": 140.1, "ma240": 93.63, "high52w": 192.0}, {"code": "3260", "name": "威剛", "date": "08/27", "close": 418.0, "high": 422.0, "ma5": 422.7, "ma10": 409.85, "ma20": 407.75, "ma60": 404.05, "ma120": 405.41, "ma240": 310.81, "high52w": 525.0}, {"code": "8299", "name": "群聯", "date": "08/27", "close": 2165.0, "high": 2180.0, "ma5": 2117.0, "ma10": 2071.0, "ma20": 2022.0, "ma60": 2116.0, "ma120": 2077.5, "ma240": 1668.65, "high52w": 2880.0}, {"code": "3006", "name": "晶豪科", "date": "08/27", "close": 278.5, "high": 282.5, "ma5": 272.1, "ma10": 265.1, "ma20": 254.72, "ma60": 230.23, "ma120": 209.96, "ma240": 157.44, "high52w": 285.5}]}, {"name": "CCL銅箔基板", "stocks": [{"code": "2383", "name": "台光電", "date": "08/27", "close": 5510.0, "high": 5960.0, "ma5": 5622.0, "ma10": 5869.5, "ma20": 5579.75, "ma60": 5269.17, "ma120": 4579.29, "ma240": 3052.92, "high52w": 6470.0}, {"code": "6274", "name": "台燿", "date": "08/27", "close": 1450.0, "high": 1565.0, "ma5": 1483.0, "ma10": 1531.0, "ma20": 1484.25, "ma60": 1497.75, "ma120": 1246.88, "ma240": 831.16, "high52w": 1920.0}, {"code": "6213", "name": "聯茂", "date": "08/27", "close": 566.0, "high": 599.0, "ma5": 534.9, "ma10": 511.75, "ma20": 444.85, "ma60": 359.02, "ma120": 291.41, "ma240": 202.12, "high52w": 599.0}, {"code": "1303", "name": "南亞", "date": "08/27", "close": 227.5, "high": 227.5, "ma5": 199.0, "ma10": 197.65, "ma20": 188.4, "ma60": 169.54, "ma120": 127.91, "ma240": 92.28, "high52w": 230.0}]}, {"name": "被動元件", "stocks": [{"code": "2327", "name": "國巨", "date": "08/27", "close": 557.0, "high": 560.0, "ma5": 548.6, "ma10": 568.7, "ma20": 572.45, "ma60": 761.06, "ma120": 572.84, "ma240": 399.4, "high52w": 1220.0}, {"code": "2492", "name": "華新科", "date": "08/27", "close": 281.0, "high": 282.0, "ma5": 269.9, "ma10": 279.6, "ma20": 272.93, "ma60": 379.62, "ma120": 280.91, "ma240": 199.41, "high52w": 645.0}, {"code": "3026", "name": "禾伸堂", "date": "08/27", "close": 675.0, "high": 675.0, "ma5": 639.8, "ma10": 660.3, "ma20": 614.77, "ma60": 714.64, "ma120": 492.68, "ma240": 298.12, "high52w": 1045.0}, {"code": "6173", "name": "信昌電", "date": "08/27", "close": 217.5, "high": 217.5, "ma5": 206.8, "ma10": 208.4, "ma20": 191.43, "ma60": 230.05, "ma120": 169.5, "ma240": 115.54, "high52w": 362.5}, {"code": "2472", "name": "立隆電", "date": "08/27", "close": 229.5, "high": 230.0, "ma5": 220.8, "ma10": 227.6, "ma20": 232.93, "ma60": 307.33, "ma120": 249.61, "ma240": 176.39, "high52w": 488.0}, {"code": "3624", "name": "光頡", "date": "08/27", "close": 92.6, "high": 94.3, "ma5": 89.04, "ma10": 88.3, "ma20": 82.6, "ma60": 108.72, "ma120": 86.03, "ma240": 67.75, "high52w": 178.0}]}, {"name": "ABF載板", "stocks": [{"code": "3037", "name": "欣興", "date": "08/27", "close": 1170.0, "high": 1205.0, "ma5": 1117.0, "ma10": 1114.0, "ma20": 1029.85, "ma60": 947.48, "ma120": 834.97, "ma240": 530.75, "high52w": 1205.0}, {"code": "8046", "name": "南電", "date": "08/27", "close": 1295.0, "high": 1295.0, "ma5": 1181.0, "ma10": 1212.5, "ma20": 1152.4, "ma60": 1082.08, "ma120": 909.33, "ma240": 598.84, "high52w": 1415.0}, {"code": "3189", "name": "景碩", "date": "08/27", "close": 922.0, "high": 960.0, "ma5": 848.6, "ma10": 857.5, "ma20": 828.3, "ma60": 767.88, "ma120": 613.85, "ma240": 388.64, "high52w": 960.0}, {"code": "4958", "name": "臻鼎-KY", "date": "08/27", "close": 476.0, "high": 480.0, "ma5": 449.9, "ma10": 463.6, "ma20": 463.38, "ma60": 524.45, "ma120": 427.84, "ma240": 294.62, "high52w": 659.0}]}, {"name": "電源供應", "stocks": [{"code": "2308", "name": "台達電", "date": "08/27", "close": 1790.0, "high": 1820.0, "ma5": 1747.0, "ma10": 1783.5, "ma20": 1747.5, "ma60": 1897.17, "ma120": 1882.96, "ma240": 1447.67, "high52w": 2585.0}, {"code": "2301", "name": "光寶科", "date": "08/27", "close": 304.0, "high": 309.0, "ma5": 291.0, "ma10": 279.95, "ma20": 265.38, "ma60": 230.99, "ma120": 205.82, "ma240": 185.22, "high52w": 312.5}]}, {"name": "BBU", "stocks": [{"code": "3211", "name": "順達", "date": "08/27", "close": 397.5, "high": 400.0, "ma5": 353.8, "ma10": 365.85, "ma20": 359.62, "ma60": 390.73, "ma120": 378.52, "ma240": 346.56, "high52w": 495.0}, {"code": "4931", "name": "新盛力", "date": "08/27", "close": 265.0, "high": 269.0, "ma5": 259.5, "ma10": 263.05, "ma20": 242.5, "ma60": 237.43, "ma120": 200.57, "ma240": 176.41, "high52w": 287.0}, {"code": "6781", "name": "AES-KY", "date": "08/27", "close": 1140.0, "high": 1140.0, "ma5": 1068.0, "ma10": 1075.5, "ma20": 1079.25, "ma60": 1091.35, "ma120": 1094.04, "ma240": 1165.4, "high52w": 1555.0}]}, {"name": "ODM", "stocks": [{"code": "2382", "name": "廣達", "date": "08/27", "close": 335.5, "high": 339.0, "ma5": 328.6, "ma10": 328.9, "ma20": 318.05, "ma60": 346.11, "ma120": 329.75, "ma240": 306.19, "high52w": 438.0}, {"code": "3231", "name": "緯創", "date": "08/27", "close": 183.5, "high": 188.0, "ma5": 179.0, "ma10": 181.85, "ma20": 185.8, "ma60": 167.26, "ma120": 152.96, "ma240": 145.38, "high52w": 206.0}, {"code": "6669", "name": "緯穎", "date": "08/27", "close": 6905.0, "high": 6960.0, "ma5": 6537.0, "ma10": 6484.0, "ma20": 6246.75, "ma60": 5442.92, "ma120": 4931.21, "ma240": 4427.44, "high52w": 6960.0}, {"code": "2317", "name": "鴻海", "date": "08/27", "close": 253.5, "high": 256.5, "ma5": 246.4, "ma10": 248.7, "ma20": 254.15, "ma60": 252.67, "ma120": 239.85, "ma240": 233.49, "high52w": 314.0}, {"code": "2324", "name": "仁寶", "date": "08/27", "close": 40.0, "high": 41.6, "ma5": 40.46, "ma10": 40.55, "ma20": 38.87, "ma60": 37.28, "ma120": 34.22, "ma240": 32.61, "high52w": 47.75}, {"code": "2356", "name": "英業達", "date": "08/27", "close": 66.0, "high": 67.7, "ma5": 66.0, "ma10": 66.12, "ma20": 65.85, "ma60": 65.58, "ma120": 57.43, "ma240": 50.74, "high52w": 88.6}]}, {"name": "光通訊", "stocks": [{"code": "3081", "name": "聯亞", "date": "08/27", "close": 3330.0, "high": 3510.0, "ma5": 3046.0, "ma10": 2894.5, "ma20": 2578.75, "ma60": 2111.93, "ma120": 2098.39, "ma240": 1335.95, "high52w": 3510.0}, {"code": "2455", "name": "全新", "date": "08/27", "close": 439.0, "high": 450.0, "ma5": 414.8, "ma10": 409.65, "ma20": 385.35, "ma60": 359.08, "ma120": 338.39, "ma240": 248.43, "high52w": 460.0}, {"code": "4991", "name": "環宇-KY", "date": "08/27", "close": 538.0, "high": 538.0, "ma5": 477.7, "ma10": 482.8, "ma20": 466.3, "ma60": 485.05, "ma120": 533.29, "ma240": 362.57, "high52w": 895.0}, {"code": "4979", "name": "華星光", "date": "08/27", "close": 623.0, "high": 654.0, "ma5": 589.2, "ma10": 564.0, "ma20": 525.17, "ma60": 483.04, "ma120": 505.43, "ma240": 379.54, "high52w": 762.0}, {"code": "3234", "name": "光環", "date": "08/27", "close": 182.5, "high": 186.0, "ma5": 168.64, "ma10": 155.13, "ma20": 135.52, "ma60": 124.59, "ma120": 112.81, "ma240": 79.55, "high52w": 186.0}, {"code": "3363", "name": "上詮", "date": "08/27", "close": 713.0, "high": 715.0, "ma5": 630.6, "ma10": 614.3, "ma20": 598.67, "ma60": 619.03, "ma120": 690.54, "ma240": 546.37, "high52w": 1065.0}, {"code": "3450", "name": "聯鈞", "date": "08/27", "close": 582.0, "high": 598.0, "ma5": 549.4, "ma10": 550.6, "ma20": 509.7, "ma60": 495.57, "ma120": 423.7, "ma240": 339.3, "high52w": 612.0}, {"code": "6451", "name": "訊芯-KY", "date": "08/27", "close": 460.0, "high": 471.5, "ma5": 431.1, "ma10": 431.15, "ma20": 424.85, "ma60": 485.1, "ma120": 453.37, "ma240": 306.29, "high52w": 756.0}]}, {"name": "矽晶圓", "stocks": [{"code": "6488", "name": "環球晶", "date": "08/27", "close": 960.0, "high": 969.0, "ma5": 968.0, "ma10": 990.6, "ma20": 942.8, "ma60": 1039.58, "ma120": 821.71, "ma240": 631.36, "high52w": 1600.0}, {"code": "3532", "name": "台勝科", "date": "08/27", "close": 393.0, "high": 397.5, "ma5": 374.4, "ma10": 366.5, "ma20": 333.0, "ma60": 365.0, "ma120": 280.09, "ma240": 193.97, "high52w": 552.0}, {"code": "6182", "name": "合晶", "date": "08/27", "close": 109.0, "high": 110.0, "ma5": 108.0, "ma10": 111.35, "ma20": 105.17, "ma60": 118.64, "ma120": 83.43, "ma240": 57.58, "high52w": 194.5}]}, {"name": "功率元件", "stocks": [{"code": "8261", "name": "富鼎", "date": "08/27", "close": 187.0, "high": 190.0, "ma5": 181.1, "ma10": 183.55, "ma20": 181.85, "ma60": 221.99, "ma120": 173.87, "ma240": 133.58, "high52w": 380.5}, {"code": "2481", "name": "強茂", "date": "08/27", "close": 148.0, "high": 152.5, "ma5": 140.5, "ma10": 139.95, "ma20": 137.15, "ma60": 156.84, "ma120": 133.48, "ma240": 108.13, "high52w": 232.5}, {"code": "5425", "name": "台半", "date": "08/27", "close": 97.3, "high": 98.3, "ma5": 91.22, "ma10": 90.51, "ma20": 86.85, "ma60": 100.33, "ma120": 84.91, "ma240": 71.06, "high52w": 144.0}, {"code": "3675", "name": "德微", "date": "08/27", "close": 283.0, "high": 286.0, "ma5": 271.8, "ma10": 274.0, "ma20": 267.68, "ma60": 313.63, "ma120": 275.76, "ma240": 211.9, "high52w": 459.0}, {"code": "6435", "name": "大中", "date": "08/27", "close": 266.5, "high": 270.5, "ma5": 259.3, "ma10": 257.7, "ma20": 256.3, "ma60": 294.43, "ma120": 245.89, "ma240": 180.85, "high52w": 447.5}]}, {"name": "航運", "stocks": [{"code": "2603", "name": "長榮", "date": "08/27", "close": 229.0, "high": 233.0, "ma5": 241.6, "ma10": 238.3, "ma20": 223.95, "ma60": 209.12, "ma120": 208.47, "ma240": 197.61, "high52w": 256.5}, {"code": "2609", "name": "陽明", "date": "08/27", "close": 57.3, "high": 58.4, "ma5": 61.4, "ma10": 58.88, "ma20": 54.98, "ma60": 52.44, "ma120": 52.47, "ma240": 53.46, "high52w": 69.9}, {"code": "2615", "name": "萬海", "date": "08/27", "close": 112.0, "high": 116.5, "ma5": 120.5, "ma10": 111.77, "ma20": 98.92, "ma60": 87.38, "ma120": 82.66, "ma240": 80.67, "high52w": 134.5}]}, {"name": "晶圓代工(成熟製程)", "stocks": [{"code": "2303", "name": "聯電", "date": "08/27", "close": 120.0, "high": 123.5, "ma5": 121.7, "ma10": 120.1, "ma20": 120.58, "ma60": 137.3, "ma120": 110.17, "ma240": 80.41, "high52w": 185.5}, {"code": "5347", "name": "世界", "date": "08/27", "close": 152.0, "high": 154.0, "ma5": 151.4, "ma10": 153.95, "ma20": 154.32, "ma60": 167.96, "ma120": 154.49, "ma240": 130.02, "high52w": 223.0}]}, {"name": "石英元件", "stocks": [{"code": "3042", "name": "晶技", "date": "08/27", "close": 192.5, "high": 197.0, "ma5": 186.1, "ma10": 185.95, "ma20": 178.97, "ma60": 190.11, "ma120": 163.65, "ma240": 125.2, "high52w": 250.0}, {"code": "2484", "name": "希華", "date": "08/27", "close": 78.1, "high": 79.4, "ma5": 76.54, "ma10": 74.65, "ma20": 72.6, "ma60": 72.99, "ma120": 55.53, "ma240": 39.32, "high52w": 102.0}, {"code": "8182", "name": "加高", "date": "08/27", "close": 40.85, "high": 41.7, "ma5": 40.64, "ma10": 40.44, "ma20": 39.93, "ma60": 45.07, "ma120": 39.89, "ma240": 33.11, "high52w": 60.7}]}, {"name": "TGV設備", "stocks": [{"code": "6207", "name": "雷科", "date": "08/27", "close": 112.0, "high": 114.0, "ma5": 105.3, "ma10": 104.85, "ma20": 104.38, "ma60": 125.79, "ma120": 96.55, "ma240": 74.95, "high52w": 181.5}, {"code": "8064", "name": "東捷", "date": "08/27", "close": 104.5, "high": 105.0, "ma5": 99.92, "ma10": 100.2, "ma20": 101.12, "ma60": 122.52, "ma120": 108.38, "ma240": 76.78, "high52w": 189.5}, {"code": "8027", "name": "鈦昇", "date": "08/27", "close": 181.5, "high": 187.0, "ma5": 173.0, "ma10": 174.25, "ma20": 176.28, "ma60": 209.97, "ma120": 193.47, "ma240": 145.29, "high52w": 297.0}, {"code": "3055", "name": "蔚華科", "date": "08/27", "close": 125.5, "high": 131.5, "ma5": 117.2, "ma10": 115.7, "ma20": 111.2, "ma60": 120.51, "ma120": 100.12, "ma240": 82.52, "high52w": 201.0}]}, {"name": "散熱", "stocks": [{"code": "3017", "name": "奇鋐", "date": "08/27", "close": 3330.0, "high": 3440.0, "ma5": 3031.0, "ma10": 3065.5, "ma20": 2910.75, "ma60": 2563.83, "ma120": 2463.92, "ma240": 1901.6, "high52w": 3440.0}, {"code": "3324", "name": "雙鴻", "date": "08/27", "close": 1070.0, "high": 1120.0, "ma5": 1038.8, "ma10": 1016.9, "ma20": 1006.95, "ma60": 989.92, "ma120": 1014.97, "ma240": 977.94, "high52w": 1305.0}, {"code": "3653", "name": "健策", "date": "08/27", "close": 5685.0, "high": 5980.0, "ma5": 5433.0, "ma10": 5357.0, "ma20": 4770.25, "ma60": 3922.17, "ma120": 3975.5, "ma240": 3276.06, "high52w": 5980.0}]}];
+
+// ---------- 計算邏輯 ----------
+function isAbove(close, ma){
+  if(!isFinite(close) || !isFinite(ma) || close<=0 || ma<=0) return null;
+  return close > ma;
+}
+function countAbove(close, maMap){
+  let n=0, total=0;
+  MA_PERIODS.forEach(p=>{
+    const r = isAbove(close, maMap[p]);
+    if(r!==null){ total++; if(r) n++; }
+  });
+  return {n, total};
+}
+
+// ---------- 大盤基準渲染 ----------
+function renderBenchmarks(){
+  const root = document.getElementById('benchRow');
+  root.innerHTML = benchmarks.map(b=>{
+    const dots = MA_PERIODS.map(p=>{
+      const above = isAbove(b.close, b.ma[p]);
+      const maVal = (b.ma[p]===null || b.ma[p]===undefined) ? null : b.ma[p];
+      return `<div class="dot-wrap">
+        <div class="dot-label">MA${p}</div>
+        <div class="dot ${above?'above':above===false?'below':''}">
+          <div class="dot-arrow">${above===null?'–':(above? '▲':'▼')}</div>
+          <div class="dot-val">${maVal===null?'–':maVal.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}</div>
+        </div>
+      </div>`;
+    }).join('');
+    const cnt = countAbove(b.close, b.ma);
+    return `<div class="bench-card">
+      <div class="bench-top">
+        <div class="bench-name">${b.name}</div>
+        <a class="chart-link" href="${b.chartUrl}" target="_blank" rel="noopener">K線圖 ↗</a>
+      </div>
+      <div class="bench-date-row">${b.date}</div>
+      <div class="bench-price">${b.close===null?'–':b.close.toLocaleString()}<span class="sub">站上 ${cnt.n}/${cnt.total} 條均線</span></div>
+      <div class="ladder">${dots}</div>
+    </div>`;
+  }).join('');
+}
+
+const state = {};
+groups.forEach(g=> g.stocks.forEach(s=>{
+  state[s.code] = {
+    close: s.close ?? '', high: s.high ?? '',
+    ma5: s.ma5 ?? '', ma10: s.ma10 ?? '', ma20: s.ma20 ?? '', ma60: s.ma60 ?? '',
+    ma120: s.ma120 ?? '', ma240: s.ma240 ?? '', high52w: s.high52w ?? ''
+  };
+}));
+
+function num(v){
+  const n = parseFloat(v);
+  return isFinite(n) ? n : NaN;
+}
+
+function computeRow(code){
+  const d = state[code];
+  const close = num(d.close);
+  const maMap = {5:num(d.ma5),10:num(d.ma10),20:num(d.ma20),60:num(d.ma60),120:num(d.ma120),240:num(d.ma240)};
+  const cnt = countAbove(close, maMap);
+  return {close, maMap, cnt};
+}
+
+function displayCell(value, opts={}){
+  const cls = ['data-cell'];
+  if(opts.above===true) cls.push('above');
+  if(opts.above===false) cls.push('below');
+  const v = (value===''||value===undefined||value===null) ? '–' : value;
+  return `<div class="${cls.join(' ')}">${v}</div>`;
+}
+
+function renderGroups(){
+  const root = document.getElementById('groupsRoot');
+  root.innerHTML = groups.map(g=>{
+    const rows = g.stocks.map(s=>{
+      const r = computeRow(s.code);
+      const cntColor = r.cnt.total===0 ? 'var(--text-faint)' : (r.cnt.n>=4?'var(--strong)': r.cnt.n<=2?'var(--weak)':'var(--signal)');
+      const chartUrl = `https://www.wantgoo.com/stock/${s.code}/technical-chart`;
+      return `<tr>
+        <td class="left code">${s.code}</td>
+        <td class="left name"><a class="stock-link" href="${chartUrl}" target="_blank" rel="noopener" title="開啟 ${s.name} K線圖">${s.name}</a></td>
+        <td>
+          ${displayCell(state[s.code].close)}
+          <div class="date-tag">${s.date||''}</div>
+        </td>
+        <td>${displayCell(state[s.code].high)}</td>
+        ${MA_PERIODS.map(p=>`<td>${displayCell(state[s.code]['ma'+p],{above:isAbove(r.close,r.maMap[p])})}</td>`).join('')}
+        <td><span class="count-badge" style="color:${cntColor}">${r.cnt.total? r.cnt.n+'/'+r.cnt.total : '–'}</span></td>
+      </tr>`;
+    }).join('');
+
+    return `<div class="group-card" id="grp-${g.name}" data-group="${g.name}">
+      <div class="group-head">
+        <h2>${g.name}</h2>
+        <div class="count">${g.stocks.length} 檔成分股</div>
+      </div>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th class="left col-code">代號</th><th class="left col-name">名稱</th>
+              <th class="col-num">收盤價</th><th class="col-num">盤中<br/>最高</th>
+              ${MA_PERIODS.map(p=>`<th class="col-num">MA${p}</th>`).join('')}
+              <th class="col-cnt">站上<br/>均線數</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+      <div class="group-summary" data-summary="${g.name}"></div>
+    </div>`;
+  }).join('');
+
+  renderSummaries();
+}
+
+function renderSummaries(){
+  groups.forEach(g=>{
+    const el = document.querySelector(`[data-summary="${g.name}"]`);
+    const cells = MA_PERIODS.map(p=>{
+      let above=0, total=0;
+      g.stocks.forEach(s=>{
+        const close = num(state[s.code].close);
+        const ma = num(state[s.code]['ma'+p]);
+        const r = isAbove(close, ma);
+        if(r!==null){ total++; if(r) above++; }
+      });
+      const pct = total? Math.round(above/total*100) : null;
+      const benchBelow = benchmarks.filter(b=> isAbove(b.close,b.ma[p])===false).map(b=>b.name.split(' ')[0]);
+      const diverge = pct!==null && pct>=70 && benchBelow.length>0;
+      return `<div class="summary-cell ${diverge?'diverge':''}">
+        <div class="period">MA${p}</div>
+        <div class="pct" style="color:${pct===null?'var(--text-faint)': diverge?'var(--signal)':(pct>=70?'var(--strong)':pct<=30?'var(--weak)':'var(--text)')}">${pct===null?'–':pct+'%'}</div>
+        <div class="count-sub">${total? above+'/'+total+' 家' : ''}</div>
+        <div class="flag">${diverge? '族群強於 '+benchBelow.join('/') : ''}</div>
+      </div>`;
+    }).join('');
+    el.innerHTML = `<div class="summary-title">族群站上各均線比例(%)　—　與大盤同期均線位置比對</div>
+      <div class="summary-grid">${cells}</div>`;
+  });
+}
+
+function exportData(){
+  const lines = [];
+  lines.push('=== 均線分析工具資料匯出 ===');
+  groups.forEach(g=>{
+    lines.push('');
+    lines.push('【'+g.name+'】');
+    g.stocks.forEach(s=>{
+      const d = state[s.code];
+      lines.push(
+        s.code+' '+s.name+' | 日期:'+(d.date||'-')+
+        ' | 收盤:'+(d.close||'-')+
+        ' | 盤中最高:'+(d.high||'-')+
+        ' | MA5:'+(d.ma5||'-')+
+        ' | MA10:'+(d.ma10||'-')+
+        ' | MA20:'+(d.ma20||'-')+
+        ' | MA60:'+(d.ma60||'-')+
+        ' | MA120:'+(d.ma120||'-')+
+        ' | MA240:'+(d.ma240||'-')
+      );
+    });
+  });
+  return lines.join('\n');
+}
+
+document.getElementById('exportBtn').addEventListener('click', async ()=>{
+  const text = exportData();
+  const statusEl = document.getElementById('exportStatus');
+  try{
+    await navigator.clipboard.writeText(text);
+    statusEl.textContent = '已複製!';
+  }catch(e){
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position='fixed'; ta.style.opacity='0';
+    document.body.appendChild(ta);
+    ta.select();
+    try{ document.execCommand('copy'); statusEl.textContent = '已複製!'; }
+    catch(e2){ statusEl.textContent = '複製失敗,請手動選取'; }
+    document.body.removeChild(ta);
+  }
+  setTimeout(()=>{ statusEl.textContent=''; }, 3000);
+});
+
+function groupStats(g){
+  let sumPct = 0, periodsCounted = 0, divergeCount = 0;
+  MA_PERIODS.forEach(p=>{
+    let above=0, total=0;
+    g.stocks.forEach(s=>{
+      const close = num(state[s.code].close);
+      const ma = num(state[s.code]['ma'+p]);
+      const r = isAbove(close, ma);
+      if(r!==null){ total++; if(r) above++; }
+    });
+    if(total){
+      const pct = above/total*100;
+      sumPct += pct; periodsCounted++;
+      const benchBelow = benchmarks.some(b=> isAbove(b.close,b.ma[p])===false);
+      if(pct>=70 && benchBelow) divergeCount++;
+    }
+  });
+  const avgPct = periodsCounted? sumPct/periodsCounted : null;
+  return {avgPct, divergeCount};
+}
+
+function renderOverview(){
+  const root = document.getElementById('overviewRoot');
+  const ranked = groups.map(g=>({name:g.name, ...groupStats(g)}))
+    .sort((a,b)=> (b.avgPct??-1) - (a.avgPct??-1));
+
+  const rows = ranked.map((r, i)=>{
+    const pct = r.avgPct===null ? 0 : Math.round(r.avgPct);
+    const color = pct>=70 ? 'var(--strong)' : pct<=30 ? 'var(--weak)' : 'var(--signal)';
+    return `<div class="overview-row">
+      <div class="overview-rank">${i+1}</div>
+      <div class="overview-name"><a class="overview-link" href="#grp-${r.name}">${r.name}</a></div>
+      <div class="overview-barwrap"><div class="overview-bar" style="width:${pct}%; background:${color};"></div></div>
+      <div class="overview-pct" style="color:${color};">${r.avgPct===null?'–':pct+'%'}</div>
+      ${r.divergeCount>0 ? `<div class="overview-diverge">${r.divergeCount}項強於大盤</div>` : ''}
+    </div>`;
+  }).join('');
+
+  root.innerHTML = `<div class="overview-card">
+    <div class="overview-title">族群總覽 — 依站上均線平均比例排序</div>
+    <div class="overview-sub">數值為該族群在6條均線(5/10/20/60/120/240日)上站上比例的平均值,越高代表族群整體多頭排列越完整</div>
+    ${rows}
+  </div>`;
+}
+
+function updateExportHint(){
+  const total = groups.reduce((sum, g) => sum + g.stocks.length, 0);
+  const el = document.getElementById('exportHint');
+  if(el) el.textContent = `按這裡可以把目前畫面上的${total}檔資料複製成一段文字,方便留存或核對。`;
+}
+
+renderBenchmarks();
+renderOverview();
+renderGroups();
+updateExportHint();
+</script>
+</body>
+</html>
