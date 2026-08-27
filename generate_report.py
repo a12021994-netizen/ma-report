@@ -19,6 +19,7 @@ import json
 import time
 import sys
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 from pathlib import Path
 
 import requests
@@ -197,7 +198,8 @@ def render_html(benchmarks_data, groups_data):
 
     html = html.replace("__BENCHMARKS_JSON__", json.dumps(benchmarks_data, ensure_ascii=False))
     html = html.replace("__GROUPS_JSON__", json.dumps(groups_data, ensure_ascii=False))
-    html = html.replace("__GENERATED_AT__", datetime.now().strftime("%Y-%m-%d %H:%M"))
+    tw_time = datetime.now(ZoneInfo("Asia/Taipei"))
+    html = html.replace("__GENERATED_AT__", tw_time.strftime("%Y-%m-%d %H:%M"))
     return html
 
 
@@ -211,7 +213,7 @@ def main():
     html = render_html(benchmarks_data, groups_data)
 
     OUTPUT_DIR.mkdir(exist_ok=True)
-    today = datetime.now().strftime("%Y%m%d")
+    today = datetime.now(ZoneInfo("Asia/Taipei")).strftime("%Y%m%d")
     out_path = OUTPUT_DIR / f"族群大盤均線分析_{today}.html"
     out_path.write_text(html, encoding="utf-8")
 
