@@ -111,7 +111,9 @@ body{
   background:var(--bg-panel-2);
 }
 .group-head h2{font-size:15px; font-weight:600; margin:0;}
+.group-head-right{display:flex; align-items:center; gap:10px;}
 .group-head .count{font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--text-dim);}
+.sparkline{display:block;}
 
 .table-scroll{overflow-x:auto;}
 table{border-collapse:collapse; width:100%; min-width:640px; table-layout:fixed; font-size:11px;}
@@ -254,7 +256,7 @@ td.name{font-weight:600; white-space:nowrap; font-size:11.5px;}
     <div class="eyebrow">Prototype · 均線強弱背離篩選</div>
     <h1>族群 x 大盤 均線強弱分析</h1>
     <p>判斷族群個股是否站上 5/10/20/60/120/240 日均線,並與加權指數、櫃買指數的均線位置比較,找出強於大盤之族群。</p>
-    <p class="data-source-note">資料來源: Yahoo Finance及FinMind (yfinance) · 產生時間: __GENERATED_AT__</p>
+    <p class="data-source-note">資料來源: Yahoo Finance (yfinance) · 產生時間: __GENERATED_AT__</p>
   </div>
 
   <div class="bench-row" id="benchRow"></div>
@@ -356,6 +358,25 @@ function displayCell(value, opts={}){
   return `<div class="${cls.join(' ')}">${v}</div>`;
 }
 
+function renderSparkline(history){
+  if(!history || history.length < 2) return '';
+  const w = 68, h = 22, pad = 2;
+  const min = Math.min(...history), max = Math.max(...history);
+  const range = (max - min) || 1;
+  const points = history.map((v,i)=>{
+    const x = pad + (i/(history.length-1))*(w-2*pad);
+    const y = h-pad - ((v-min)/range)*(h-2*pad);
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(' ');
+  const trendUp = history[history.length-1] >= history[0];
+  const color = trendUp ? 'var(--strong)' : 'var(--weak)';
+  const title = `近${history.length}日強弱比例: ${history.map(v=>v+'%').join(' → ')}`;
+  return `<svg class="sparkline" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}">
+    <title>${title}</title>
+    <polyline points="${points}" fill="none" stroke="${color}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>`;
+}
+
 function renderGroups(){
   const root = document.getElementById('groupsRoot');
   root.innerHTML = groups.map(g=>{
@@ -379,7 +400,10 @@ function renderGroups(){
     return `<div class="group-card" id="grp-${g.name}" data-group="${g.name}">
       <div class="group-head">
         <h2>${g.name}</h2>
-        <div class="count">${g.stocks.length} 檔成分股</div>
+        <div class="group-head-right">
+          ${renderSparkline(g.history)}
+          <div class="count">${g.stocks.length} 檔成分股</div>
+        </div>
       </div>
       <div class="table-scroll">
         <table>
