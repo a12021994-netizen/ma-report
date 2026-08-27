@@ -1,0 +1,45 @@
+yaml
+name: Daily MA Report
+
+# 這個檔案控制「什麼時候」以及「怎麼」自動執行 generate_report.py
+
+on:
+  schedule:
+    # UTC 時間 07:30 = 台灣時間 15:30，週一到週五執行
+    - cron: '30 7 * * 1-5'
+  workflow_dispatch: {}
+    # 上面這行讓您可以在 GitHub 網頁上按按鈕手動觸發，方便第一次測試
+
+permissions:
+  contents: write   # 允許這個流程把產生的網頁存回 repository
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 取得程式碼
+        uses: actions/checkout@v4
+
+      - name: 安裝 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: 安裝套件
+        run: pip install yfinance
+
+      - name: 執行分析腳本
+        run: python generate_report.py
+
+      - name: 把結果複製成網頁首頁
+        run: |
+          mkdir -p docs
+          cp output/*.html docs/index.html
+
+      - name: 把結果存回 GitHub
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs/index.html
+          git commit -m "自動更新分析 $(date +'%Y-%m-%d %H:%M')" || echo "沒有變動，不用 commit"
+          git push
