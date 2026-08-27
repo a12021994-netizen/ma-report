@@ -37,6 +37,9 @@ MA_PERIODS = [5, 10, 20, 60, 120, 240]
 
 FINMIND_URL = "https://api.finmindtrade.com/api/v4/data"
 FINMIND_START_DATE = (datetime.now() - timedelta(days=730)).strftime("%Y-%m-%d")
+HISTORY_FILE = SCRIPT_DIR / "history.json"
+HISTORY_DAYS_TO_KEEP = 60   # 每個族群最多保留多少天的歷史紀錄
+SPARKLINE_DAYS = 7          # 網頁上顯示最近幾天的趨勢線
 
 
 def fetch_history(ticker: str):
@@ -192,6 +195,67 @@ def build_benchmarks_data():
     return result
 
 
+def compute_group_avg_pct(stocks):
+    """算出一個族群在 6 條均線上，平均有多少比例的股票站上均線（0~100）"""
+    sum_pct = 0.0
+    periods_counted = 0
+    for p in MA_PERIODS:
+        above, total = 0, 0
+        for s in stocks:
+            close = s.get("close")
+            ma = s.get(f"ma{p}")
+            if close is None or ma is None:
+                continue
+            total += 1
+            if close > ma:
+                above += 1
+        if total:
+            sum_pct += above / total * 100
+            periods_counted += 1
+    if periods_counted:
+        return round(sum_pct / periods_counted, 1)
+    return None
+
+
+def load_history():
+    if HISTORY_FILE.exists():
+        try:
+            return json.loads(HISTORY_FILE.read_text(encoding="utf-8"))
+        except Exception:
+            return {}
+    return {}
+
+
+def update_history(groups_data, today_str):
+    """把今天每個族群的強弱比例存進 history.json，並修剪掉太舊的資料"""
+    history = load_history()
+    for g in groups_data:
+        name = g["name"]
+        avg_pct = compute_group_avg_pct(g["stocks"])
+        if avg_pct is None:
+            continue
+        history.setdefault(name, {})
+        history[name][today_str] = avg_pct
+        dates_sorted = sorted(history[name].keys())
+        if len(dates_sorted) > HISTORY_DAYS_TO_KEEP:
+            for old_date in dates_sorted[:-HISTORY_DAYS_TO_KEEP]:
+                del history[name][old_date]
+
+    HISTORY_FILE.write_text(
+        json.dumps(history, ensure_ascii=False, indent=1), encoding="utf-8"
+    )
+    return history
+
+
+def attach_sparkline_data(groups_data, history):
+    """把每個族群最近幾天的比例數字，附加到 groups_data 裡供網頁畫趨勢線"""
+    for g in groups_data:
+        hist = history.get(g["name"], {})
+        recent_dates = sorted(hist.keys())[-SPARKLINE_DAYS:]
+        g["history"] = [hist[d] for d in recent_dates]
+    return groups_data
+
+
 def render_html(benchmarks_data, groups_data):
     template_path = SCRIPT_DIR / "template.html"
     html = template_path.read_text(encoding="utf-8")
@@ -209,6 +273,10 @@ def main():
     benchmarks_data = build_benchmarks_data()
     print()
     groups_data = build_groups_data()
+
+    today_str = datetime.now(ZoneInfo("Asia/Taipei")).strftime("%Y-%m-%d")
+    history = update_history(groups_data, today_str)
+    groups_data = attach_sparkline_data(groups_data, history)
 
     html = render_html(benchmarks_data, groups_data)
 
