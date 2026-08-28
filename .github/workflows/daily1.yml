@@ -19,7 +19,7 @@ jobs:
         with:
           python-version: '3.12'
       - name: install packages
-        run: pip install yfinance requests pandas
+        run: pip install requests pandas
       - name: run script
         run: python generate_report.py
       - name: copy to docs
