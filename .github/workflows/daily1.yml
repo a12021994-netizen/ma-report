@@ -5,7 +5,7 @@ name: Daily MA Report
 on:
   schedule:
     # UTC 時間 06:00 = 台灣時間 14:00，週一到週五執行
-    - cron: '0 6 * * 1-5'
+    - cron: '22 7 * * *'
   workflow_dispatch: {}
     # 上面這行讓您可以在 GitHub 網頁上按按鈕手動觸發，方便第一次測試
 
