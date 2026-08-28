@@ -6,13 +6,13 @@
     python generate_report.py
 
 會做的事:
-    1. 用 yfinance 抓取 stock_list.py 裡所有個股與大盤指數的歷史股價
-    2. 自動判斷個股是上市(.TW)還是上櫃(.TWO)
-    3. 計算 MA5 / MA10 / MA20 / MA60 / MA120 / MA240 與 52 週高點
-    4. 把資料套進 template.html，輸出一份帶有今天日期的 HTML 檔案
+    1. 用 FinMind 抓取 stock_list.py 裡所有個股與大盤指數的歷史股價
+    2. 計算 MA5 / MA10 / MA20 / MA60 / MA120 / MA240 與 52 週高點
+    3. 把資料套進 template.html，輸出一份帶有今天日期的 HTML 檔案
+    4. 把每個族群的強弱比例記錄進 history.json，供網頁畫趨勢線
 
 需求套件:
-    pip install yfinance --break-system-packages   # 或在 venv 裡不用加這個參數
+    pip install requests pandas --break-system-packages   # 或在 venv 裡不用加這個參數
 """
 
 import json
@@ -24,7 +24,6 @@ from pathlib import Path
 
 import requests
 import pandas as pd
-import yfinance as yf
 
 from stock_list import BENCHMARKS, GROUPS
 
@@ -32,7 +31,7 @@ from stock_list import BENCHMARKS, GROUPS
 SCRIPT_DIR = Path(__file__).resolve().parent
 OUTPUT_DIR = SCRIPT_DIR / "output"
 HISTORY_PERIOD = "2y"   # 抓 2 年資料，確保 MA240 與 52 週高點算得出來
-REQUEST_DELAY_SEC = 0.4  # 每檔股票查詢間隔，避免被 Yahoo 限流
+REQUEST_DELAY_SEC = 0.4  # 每檔股票查詢間隔，避免被限流
 MA_PERIODS = [5, 10, 20, 60, 120, 240]
 
 FINMIND_URL = "https://api.finmindtrade.com/api/v4/data"
@@ -40,29 +39,6 @@ FINMIND_START_DATE = (datetime.now() - timedelta(days=730)).strftime("%Y-%m-%d")
 HISTORY_FILE = SCRIPT_DIR / "history.json"
 HISTORY_DAYS_TO_KEEP = 60   # 每個族群最多保留多少天的歷史紀錄
 SPARKLINE_DAYS = 7          # 網頁上顯示最近幾天的趨勢線
-
-
-def fetch_history(ticker: str):
-    """抓取單一 ticker 的歷史資料，失敗回傳 None"""
-    try:
-        df = yf.Ticker(ticker).history(period=HISTORY_PERIOD, auto_adjust=False)
-        if df is None or df.empty:
-            return None
-        return df
-    except Exception as e:
-        print(f"  [警告] {ticker} 抓取失敗: {e}")
-        return None
-
-
-def try_fetch_stock(code: str):
-    """依序嘗試 .TW（上市）與 .TWO（上櫃），回傳 (使用的 ticker, DataFrame) 或 (None, None)"""
-    for suffix in (".TW", ".TWO"):
-        ticker = f"{code}{suffix}"
-        df = fetch_history(ticker)
-        time.sleep(REQUEST_DELAY_SEC)
-        if df is not None and len(df) > 5:
-            return ticker, df
-    return None, None
 
 
 def fetch_finmind_history(data_id: str):
@@ -149,7 +125,8 @@ def build_groups_data():
             done += 1
             code, name = s["code"], s["name"]
             print(f"[{done}/{total}] 抓取 {code} {name} ...", end=" ")
-            ticker, df = try_fetch_stock(code)
+            df = fetch_finmind_history(code)
+            time.sleep(REQUEST_DELAY_SEC)
             if df is None:
                 print("失敗")
                 stocks_out.append({
@@ -161,7 +138,7 @@ def build_groups_data():
                 })
                 continue
             stats = compute_stock_stats(df)
-            print(f"OK ({ticker}, 收盤 {stats['close']})")
+            print(f"OK (收盤 {stats['close']})")
             stocks_out.append({"code": code, "name": name, **stats})
         result_groups.append({"name": g["name"], "stocks": stocks_out})
 
