@@ -225,11 +225,11 @@ def update_history(groups_data, today_str):
 
 
 def attach_sparkline_data(groups_data, history):
-    """把每個族群最近幾天的比例數字，附加到 groups_data 裡供網頁畫趨勢線"""
+    """把每個族群最近幾天的比例數字（含日期），附加到 groups_data 裡供網頁畫趨勢圖"""
     for g in groups_data:
         hist = history.get(g["name"], {})
         recent_dates = sorted(hist.keys())[-SPARKLINE_DAYS:]
-        g["history"] = [hist[d] for d in recent_dates]
+        g["history"] = [{"date": d[5:], "pct": hist[d]} for d in recent_dates]
     return groups_data
 
 
