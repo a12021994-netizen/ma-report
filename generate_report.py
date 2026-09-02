@@ -105,6 +105,7 @@ def compute_stock_stats(df):
 
     return {
         "date": last_date.strftime("%m/%d"),
+        "date_iso": last_date.strftime("%Y-%m-%d"),
         "close": round(float(last_row["Close"]), 2),
         "high": round(float(last_row["High"]), 2),
         "ma5": ma[5], "ma10": ma[10], "ma20": ma[20],
@@ -147,6 +148,7 @@ def build_groups_data():
 
 def build_benchmarks_data():
     result = []
+    data_date = None   # 用大盤指數實際收盤日期，作為 history.json 記錄用的日期
     for b in BENCHMARKS:
         candidates = b["finmind_candidates"]
         print(f"抓取大盤 {b['name']} (FinMind 候選: {candidates}) ...", end=" ")
@@ -161,6 +163,8 @@ def build_benchmarks_data():
             continue
         stats = compute_stock_stats(df)
         print(f"OK (用 data_id={data_id}, 收盤 {stats['close']})")
+        if data_date is None:
+            data_date = stats["date_iso"]   # 以第一個成功抓到的大盤指數為準（優先加權指數）
         result.append({
             "key": b["key"],
             "name": b["name"],
@@ -169,7 +173,7 @@ def build_benchmarks_data():
             "ma": {str(p): stats[f"ma{p}"] for p in MA_PERIODS},
             "chartUrl": b["chart_url"],
         })
-    return result
+    return result, data_date
 
 
 def compute_group_avg_pct(stocks):
@@ -247,12 +251,16 @@ def render_html(benchmarks_data, groups_data):
 def main():
     print("=== 族群 x 大盤 均線強弱分析 - 資料更新開始 ===\n")
 
-    benchmarks_data = build_benchmarks_data()
+    benchmarks_data, data_date = build_benchmarks_data()
     print()
     groups_data = build_groups_data()
 
-    today_str = datetime.now(ZoneInfo("Asia/Taipei")).strftime("%Y-%m-%d")
-    history = update_history(groups_data, today_str)
+    # 優先用資料本身實際的收盤日期記錄歷史，抓不到大盤時才退回用執行當下的系統日期
+    record_date = data_date or datetime.now(ZoneInfo("Asia/Taipei")).strftime("%Y-%m-%d")
+    print(f"\n本次記錄的資料日期: {record_date}"
+          + ("" if data_date else "（大盤抓取失敗，改用系統當下日期）"))
+
+    history = update_history(groups_data, record_date)
     groups_data = attach_sparkline_data(groups_data, history)
 
     html = render_html(benchmarks_data, groups_data)
