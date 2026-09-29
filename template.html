@@ -208,16 +208,24 @@ td.name{font-weight:600; white-space:nowrap; font-size:11.5px;}
 }
 .overview-title{font-size:13px; font-weight:600; margin-bottom:2px;}
 .overview-sub{font-size:11px; color:var(--text-dim); margin-bottom:14px;}
-.overview-row{
-  display:flex; align-items:center; gap:12px; padding:8px 0;
+.overview-row,.overview-head{
+  display:grid; grid-template-columns:20px 110px minmax(0,1fr) minmax(0,1fr);
+  align-items:center; column-gap:12px; padding:8px 0;
   border-bottom:1px solid var(--border);
 }
+.overview-head{padding:0 0 6px;}
+.overview-panels{display:contents;}
+.overview-panel{display:flex; align-items:center; gap:10px; min-width:0;}
+.overview-panel + .overview-panel{border-left:1px dashed var(--border); padding-left:12px;}
+.overview-col-title{font-size:10.5px; color:var(--text-dim); font-weight:600;}
+.overview-head .overview-panel{flex-direction:column; align-items:stretch; gap:2px;}
+.diverge-slot{width:74px; flex-shrink:0;}
 .overview-row:last-child{border-bottom:none;}
 .overview-rank{
   font-family:'IBM Plex Mono',monospace; font-size:12px; font-weight:700; color:var(--text-faint);
-  width:20px; text-align:center; flex-shrink:0;
+  text-align:center;
 }
-.overview-name{font-size:13px; font-weight:600; width:110px; flex-shrink:0;}
+.overview-name{font-size:13px; font-weight:600; min-width:0;}
 .overview-link{color:var(--text); text-decoration:none; border-bottom:1px dashed var(--text-faint);}
 .overview-link:hover{color:var(--accent); border-bottom-color:var(--accent);}
 .overview-barwrap{flex:1; background:#0f1216; border-radius:6px; height:20px; overflow:hidden; position:relative;}
@@ -241,7 +249,7 @@ td.name{font-weight:600; white-space:nowrap; font-size:11.5px;}
 .overview-toggle:hover{color:var(--accent); border-color:var(--accent);}
 
 .dist-axis{
-  display:flex; justify-content:space-between; margin:0 60px 4px 154px;
+  display:flex; justify-content:space-between; margin-right:58px;
   font-family:'IBM Plex Mono',monospace; font-size:9.5px; color:var(--text-faint);
 }
 .dist-track{flex:1; position:relative; height:20px;}
@@ -257,7 +265,7 @@ td.name{font-weight:600; white-space:nowrap; font-size:11.5px;}
   border-radius:50%; border:2px solid var(--bg-panel);
 }
 .dist-legend{
-  display:flex; gap:14px; font-size:10.5px; color:var(--text-dim); margin-top:10px;
+  display:flex; flex-wrap:wrap; gap:6px 14px; font-size:10.5px; color:var(--text-dim); margin-top:10px;
 }
 .dist-legend span{display:inline-flex; align-items:center; gap:5px;}
 .dist-legend i{display:inline-block; border-radius:50%;}
@@ -268,11 +276,14 @@ td.name{font-weight:600; white-space:nowrap; font-size:11.5px;}
 
 @media (max-width:480px){
   body{padding:20px 12px 50px;}
-  .overview-name{width:72px; font-size:12px;}
-  .overview-pct{width:38px; font-size:11px;}
-  .overview-diverge{display:none;}
-  .overview-rank{width:16px;}
-  .dist-axis{margin:0 50px 4px 112px;}
+  .overview-row,.overview-head{grid-template-columns:16px 64px minmax(0,1fr); column-gap:8px;}
+  .overview-panels{display:flex; flex-direction:column; gap:6px; min-width:0;}
+  .overview-panel + .overview-panel{border-left:none; padding-left:0;}
+  .overview-head .overview-panels{gap:8px;}
+  .overview-name{font-size:12px;}
+  .overview-pct{width:44px; font-size:11px;}
+  .diverge-slot{display:none;}
+  .dist-axis{margin-right:54px;}
 }
 </style>
 </head>
@@ -289,8 +300,6 @@ td.name{font-weight:600; white-space:nowrap; font-size:11.5px;}
   <div class="bench-row" id="benchRow"></div>
 
   <div id="overviewRoot"></div>
-
-  <div id="distOverviewRoot"></div>
 
   <div id="groupsRoot"></div>
 
@@ -540,25 +549,56 @@ function groupStats(g){
 
 function renderOverview(){
   const root = document.getElementById('overviewRoot');
-  const ranked = groups.map(g=>({name:g.name, ...groupStats(g)}))
+  const ranked = groups.map(g=>({name:g.name, ...groupStats(g), dist:groupDistStats(g)}))
     .sort((a,b)=> (b.avgPct??-1) - (a.avgPct??-1));
+  const axisMin = distAxisMin(ranked.flatMap(r=>r.dist.vals));
+  const xPct = v => ((v-axisMin)/(0-axisMin)*100).toFixed(2);
 
   const rows = ranked.map((r, i)=>{
     const pct = r.avgPct===null ? 0 : Math.round(r.avgPct);
     const color = pct>=70 ? 'var(--strong)' : pct<=30 ? 'var(--weak)' : 'var(--signal)';
+    const dColor = distColor(r.dist.avg);
+    const dots = r.dist.vals.map(v=>`<div class="dist-dot" style="left:${xPct(v)}%" title="${fmtDist(v)}"></div>`).join('');
+    const avgDot = r.dist.avg===null ? '' :
+      `<div class="dist-avg" style="left:${xPct(r.dist.avg)}%; background:${dColor};" title="族群平均 ${fmtDist(r.dist.avg)}"></div>`;
     return `<div class="overview-row">
       <div class="overview-rank">${i+1}</div>
       <div class="overview-name"><a class="overview-link" href="#grp-${r.name}">${r.name}</a></div>
-      <div class="overview-barwrap"><div class="overview-bar" style="width:${pct}%; background:${color};"></div></div>
-      <div class="overview-pct" style="color:${color};">${r.avgPct===null?'–':pct+'%'}</div>
-      ${r.divergeCount>0 ? `<div class="overview-diverge">${r.divergeCount}項強於大盤</div>` : ''}
+      <div class="overview-panels">
+        <div class="overview-panel">
+          <div class="overview-barwrap"><div class="overview-bar" style="width:${pct}%; background:${color};"></div></div>
+          <div class="overview-pct" style="color:${color};">${r.avgPct===null?'–':pct+'%'}</div>
+          <div class="diverge-slot">${r.divergeCount>0 ? `<span class="overview-diverge">${r.divergeCount}項強於大盤</span>` : ''}</div>
+        </div>
+        <div class="overview-panel">
+          <div class="dist-track">${dots}${avgDot}</div>
+          <div class="overview-pct" style="color:${dColor};">${fmtDist(r.dist.avg)}</div>
+        </div>
+      </div>
     </div>`;
   });
 
   root.innerHTML = `<div class="overview-card" id="overviewCard">
     <div class="overview-title">族群總覽 — 依站上均線平均比例排序</div>
-    <div class="overview-sub">數值為該族群在6條均線(5/10/20/60/120/240日)上站上比例的平均值,越高代表族群整體多頭排列越完整</div>
+    <div class="overview-sub">左:族群在6條均線(5/10/20/60/120/240日)上站上比例的平均值,越高代表多頭排列越完整。右:離52週高點%,大圓點為族群平均、小灰點為各成分股,越靠右越接近高點</div>
+    <div class="overview-head">
+      <div></div><div></div>
+      <div class="overview-panels">
+        <div class="overview-panel"><div class="overview-col-title">站上均線平均比例</div></div>
+        <div class="overview-panel">
+          <div class="overview-col-title">離52週高點%</div>
+          <div class="dist-axis"><span>${axisMin}%</span><span>${Math.round(axisMin/2)}%</span><span>0%</span></div>
+        </div>
+      </div>
+    </div>
     ${collapsibleRows(rows, 'overviewCard')}
+    <div class="dist-legend">
+      <span>離高點:</span>
+      <span><i style="width:10px;height:10px;background:var(--strong)"></i>≥ -10%</span>
+      <span><i style="width:10px;height:10px;background:var(--signal)"></i>-10% ~ -25%</span>
+      <span><i style="width:10px;height:10px;background:var(--weak)"></i>≤ -25%</span>
+      <span><i style="width:7px;height:7px;background:var(--text-faint)"></i>個股</span>
+    </div>
   </div>`;
   bindOverviewToggle('overviewCard');
 }
@@ -620,44 +660,9 @@ function renderDistTrendChart(history){
   });
 }
 
-function renderDistOverview(){
-  const root = document.getElementById('distOverviewRoot');
-  const ranked = groups.map(g=>({name:g.name, ...groupDistStats(g)}))
-    .sort((a,b)=> (b.avg ?? -Infinity) - (a.avg ?? -Infinity));
-  const axisMin = distAxisMin(ranked.flatMap(r=>r.vals));
-  const xPct = v => ((v-axisMin)/(0-axisMin)*100).toFixed(2);
-
-  const rows = ranked.map((r, i)=>{
-    const color = distColor(r.avg);
-    const dots = r.vals.map(v=>`<div class="dist-dot" style="left:${xPct(v)}%" title="${fmtDist(v)}"></div>`).join('');
-    const avgDot = r.avg===null ? '' :
-      `<div class="dist-avg" style="left:${xPct(r.avg)}%; background:${color};" title="族群平均 ${fmtDist(r.avg)}"></div>`;
-    return `<div class="overview-row">
-      <div class="overview-rank">${i+1}</div>
-      <div class="overview-name"><a class="overview-link" href="#grp-${r.name}">${r.name}</a></div>
-      <div class="dist-track">${dots}${avgDot}</div>
-      <div class="overview-pct" style="color:${color};">${fmtDist(r.avg)}</div>
-    </div>`;
-  });
-
-  root.innerHTML = `<div class="overview-card" id="distOverviewCard">
-    <div class="overview-title">離高點總覽 — 依族群平均離52週高點%排序</div>
-    <div class="overview-sub">大圓點為族群平均,小灰點為各成分股;越靠右代表越接近52週高點</div>
-    <div class="dist-axis"><span>${axisMin}%</span><span>${Math.round(axisMin/2)}%</span><span>0%</span></div>
-    ${collapsibleRows(rows, 'distOverviewCard')}
-    <div class="dist-legend">
-      <span><i style="width:10px;height:10px;background:var(--strong)"></i>≥ -10%</span>
-      <span><i style="width:10px;height:10px;background:var(--signal)"></i>-10% ~ -25%</span>
-      <span><i style="width:10px;height:10px;background:var(--weak)"></i>≤ -25%</span>
-      <span><i style="width:7px;height:7px;background:var(--text-faint)"></i>個股</span>
-    </div>
-  </div>`;
-  bindOverviewToggle('distOverviewCard');
-}
 
 renderBenchmarks();
 renderOverview();
-renderDistOverview();
 renderGroups();
 </script>
 </body>
