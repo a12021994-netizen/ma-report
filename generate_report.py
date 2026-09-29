@@ -10,6 +10,7 @@
     2. 計算 MA5 / MA10 / MA20 / MA60 / MA120 / MA240 與 52 週高點
     3. 把資料套進 template.html，輸出一份帶有今天日期的 HTML 檔案
     4. 把每個族群的強弱比例記錄進 history.json，供網頁畫趨勢線
+    5. 用每檔個股的歷史股價算出近幾天的「離 52 週高點 %」，取族群平均畫趨勢線
 
 需求套件:
     pip install requests pandas --break-system-packages   # 或在 venv 裡不用加這個參數
@@ -39,6 +40,7 @@ FINMIND_START_DATE = (datetime.now() - timedelta(days=730)).strftime("%Y-%m-%d")
 HISTORY_FILE = SCRIPT_DIR / "history.json"
 HISTORY_DAYS_TO_KEEP = 60   # 每個族群最多保留多少天的歷史紀錄
 SPARKLINE_DAYS = 7          # 網頁上顯示最近幾天的趨勢線
+HIGH_52W_DAYS = 252         # 52 週高點用近 252 個交易日計算
 
 
 def fetch_finmind_history(data_id: str):
@@ -100,7 +102,7 @@ def compute_stock_stats(df):
             ma[p] = None
 
     # 52 週高點（用近 252 個交易日的最高價）
-    high_window = df["High"].tail(252)
+    high_window = df["High"].tail(HIGH_52W_DAYS)
     high52w = round(float(high_window.max()), 2) if not high_window.empty else None
 
     return {
@@ -114,6 +116,22 @@ def compute_stock_stats(df):
     }
 
 
+def compute_dist_from_high_series(df, days):
+    """算出最近幾個交易日，每天收盤價離當時 52 週高點的 %（負值代表低於高點）"""
+    rolling_high = df["High"].rolling(HIGH_52W_DAYS, min_periods=1).max()
+    dist = df["Close"] / rolling_high * 100 - 100
+    return dist.tail(days)
+
+
+def build_group_dist_history(dist_series_list):
+    """把族群內每檔個股的離高點 % 依日期取平均，回傳最近幾天的趨勢資料"""
+    if not dist_series_list:
+        return []
+    frame = pd.concat(dist_series_list, axis=1)
+    avg = frame.mean(axis=1, skipna=True).dropna().tail(SPARKLINE_DAYS)
+    return [{"date": d.strftime("%m-%d"), "pct": round(float(v), 1)} for d, v in avg.items()]
+
+
 def build_groups_data():
     """跑過 stock_list.py 裡的每個族群，抓資料並算均線"""
     result_groups = []
@@ -122,6 +140,7 @@ def build_groups_data():
 
     for g in GROUPS:
         stocks_out = []
+        dist_series_list = []
         for s in g["stocks"]:
             done += 1
             code, name = s["code"], s["name"]
@@ -141,7 +160,13 @@ def build_groups_data():
             stats = compute_stock_stats(df)
             print(f"OK (收盤 {stats['close']})")
             stocks_out.append({"code": code, "name": name, **stats})
-        result_groups.append({"name": g["name"], "stocks": stocks_out})
+            # 多取幾天，避免個股停牌造成日期對不齊時資料不夠
+            dist_series_list.append(compute_dist_from_high_series(df, SPARKLINE_DAYS + 5))
+        result_groups.append({
+            "name": g["name"],
+            "stocks": stocks_out,
+            "distHistory": build_group_dist_history(dist_series_list),
+        })
 
     return result_groups
 
