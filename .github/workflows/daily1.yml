@@ -4,7 +4,15 @@ on:
   schedule:
     # UTC 時間 07:05 = 台灣時間 15:05，週一到週五執行
     - cron: '5 7 * * 1-5'
+    # 備援：UTC 08:37 = 台灣時間 16:37。GitHub 忙碌時排程可能延遲或被丟掉，
+    # 多排一次確保當天有跑到；兩次都跑也只是用同一天的資料重新產生報告
+    - cron: '37 8 * * 1-5'
   workflow_dispatch: {}
+
+# 同一時間只跑一個，後到的排隊等前一個跑完，避免兩次同時推送互相衝突
+concurrency:
+  group: daily-ma-report
+  cancel-in-progress: false
 
 permissions:
   contents: write
