@@ -40,7 +40,24 @@ FINMIND_START_DATE = (datetime.now() - timedelta(days=730)).strftime("%Y-%m-%d")
 HISTORY_FILE = SCRIPT_DIR / "history.json"
 HISTORY_DAYS_TO_KEEP = 60   # 每個族群最多保留多少天的歷史紀錄
 SPARKLINE_DAYS = 7          # 網頁上顯示最近幾天的趨勢線
+FETCH_RETRIES = 3           # 連線逾時或伺服器暫時錯誤時，最多嘗試幾次
+FETCH_RETRY_WAIT_SEC = 3    # 每次重試前等待的秒數（第 n 次重試等 n 倍）
 HIGH_52W_DAYS = 252         # 52 週高點用近 252 個交易日計算
+
+
+def request_finmind(params):
+    """呼叫 FinMind API；遇到逾時、連線中斷或伺服器暫時錯誤會自動重試，最後仍失敗就丟出例外"""
+    for attempt in range(1, FETCH_RETRIES + 1):
+        try:
+            resp = requests.get(FINMIND_URL, params=params, timeout=15)
+            if resp.status_code == 429 or resp.status_code >= 500:
+                raise requests.HTTPError(f"HTTP {resp.status_code}")
+            return resp
+        except requests.RequestException as e:
+            if attempt == FETCH_RETRIES:
+                raise
+            print(f"  [重試 {attempt}/{FETCH_RETRIES - 1}] data_id={params['data_id']}: {e}")
+            time.sleep(FETCH_RETRY_WAIT_SEC * attempt)
 
 
 def fetch_finmind_history(data_id: str):
@@ -51,7 +68,7 @@ def fetch_finmind_history(data_id: str):
         "start_date": FINMIND_START_DATE,
     }
     try:
-        resp = requests.get(FINMIND_URL, params=params, timeout=15)
+        resp = request_finmind(params)
         if resp.status_code != 200:
             return None
         payload = resp.json()
