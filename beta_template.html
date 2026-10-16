@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>族群 x 大盤 Beta 分析</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+TC:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap');
+
+:root{
+  color-scheme:dark;
+  --bg:#12151a;
+  --bg-panel:#1a1f27;
+  --bg-panel-2:#20262f;
+  --bg-input:#0f1216;
+  --border:#2b3340;
+  --text:#e7e9ec;
+  --text-dim:#8b93a3;
+  --text-faint:#5c6472;
+  --strong:#e2574c;
+  --strong-bg:rgba(226,87,76,0.14);
+  --strong-line:rgba(226,87,76,0.4);
+  --weak:#3fae72;
+  --weak-bg:rgba(63,174,114,0.14);
+  --weak-line:rgba(63,174,114,0.4);
+  --signal:#e0ab3f;
+  --accent:#5b8def;
+  --accent-bg:rgba(91,141,239,0.14);
+  --mid:#aab2c0;
+  --mid-bg:rgba(170,178,192,0.10);
+  --font-body:'IBM Plex Sans TC', system-ui, 'PingFang TC', 'Microsoft JhengHei', sans-serif;
+  --font-mono:'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+html{scroll-behavior:smooth;}
+body{
+  background:var(--bg); color:var(--text);
+  font-family:var(--font-body);
+  padding:28px 16px 60px;
+  min-width:320px;
+}
+.wrap{max-width:1240px; margin:0 auto; display:flex; flex-direction:column; gap:26px;}
+
+/* hero */
+.hero{display:flex; flex-direction:column; gap:6px; padding-bottom:20px; border-bottom:1px solid var(--border);}
+.eyebrow{font-family:var(--font-mono); font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--accent);}
+.hero h1{font-size:26px; font-weight:700; margin:2px 0 4px; letter-spacing:-.01em;}
+.hero p{margin:0; color:var(--text-dim); font-size:13.5px; line-height:1.6; max-width:68ch;}
+.hero-meta{display:flex; flex-wrap:wrap; gap:8px 14px; align-items:center; margin-top:8px; font-size:11.5px; color:var(--text-faint);}
+.back-link{color:var(--accent); text-decoration:none; font-weight:600;}
+.back-link:hover{text-decoration:underline;}
+
+/* controls */
+.controls{display:flex; flex-wrap:wrap; gap:12px 22px; align-items:center;}
+.ctl{display:flex; align-items:center; gap:8px; font-size:12px; color:var(--text-dim);}
+.seg{display:inline-flex; background:var(--bg-panel); border:1px solid var(--border); border-radius:8px; padding:3px; gap:2px;}
+.seg button{
+  font:inherit; font-size:12px; font-weight:600; color:var(--text-dim);
+  background:transparent; border:0; border-radius:6px; padding:5px 12px; cursor:pointer;
+}
+.seg button:hover{color:var(--text);}
+.seg button[aria-pressed="true"]{background:var(--accent-bg); color:var(--accent);}
+.seg button:focus-visible{outline:2px solid var(--accent); outline-offset:1px;}
+
+/* benchmark cards */
+.bench-row{display:grid; grid-template-columns:1fr 1fr; gap:14px;}
+@media (max-width:720px){.bench-row{grid-template-columns:1fr;}}
+.bench-card{background:var(--bg-panel); border:1px solid var(--border); border-radius:10px; padding:16px 18px; display:flex; flex-direction:column; gap:12px;}
+.bench-top{display:flex; justify-content:space-between; align-items:baseline; gap:10px;}
+.bench-name{font-size:14px; font-weight:600;}
+.bench-date{font-family:var(--font-mono); font-size:10.5px; color:var(--text-faint);}
+.bench-stats{display:grid; grid-template-columns:repeat(3,1fr); gap:8px;}
+.stat{background:var(--bg-input); border:1px solid var(--border); border-radius:8px; padding:9px 8px; text-align:center; min-width:0;}
+.stat .k{font-size:10.5px; color:var(--text-faint); margin-bottom:4px;}
+.stat .v{font-family:var(--font-mono); font-size:17px; font-weight:700; font-variant-numeric:tabular-nums;}
+.bench-fail{font-size:12px; color:var(--text-faint);}
+
+/* section heads */
+.section-head{display:flex; justify-content:space-between; align-items:baseline; gap:10px; flex-wrap:wrap; margin-bottom:12px;}
+.section-head h2{font-size:16px; font-weight:600; margin:0;}
+.section-head .hint{font-size:11.5px; color:var(--text-faint);}
+
+/* ranking chart */
+.panel{background:var(--bg-panel); border:1px solid var(--border); border-radius:10px; padding:16px 18px 14px;}
+.rank{display:grid; grid-template-columns:minmax(84px,130px) 1fr 92px; column-gap:12px; row-gap:5px; align-items:center;}
+.rank-axis{grid-column:2; position:relative; height:16px; font-family:var(--font-mono); font-size:9.5px; color:var(--text-faint);}
+.rank-axis span{position:absolute; transform:translateX(-50%); top:0;}
+.rank-name{font-size:12px; font-weight:600; text-align:right; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:var(--text); text-decoration:none;}
+.rank-name:hover{color:var(--accent);}
+.rank-track{position:relative; height:18px; background:
+  repeating-linear-gradient(to right, transparent 0, transparent calc(var(--tick) - 1px), var(--border) calc(var(--tick) - 1px), var(--border) var(--tick));}
+.rank-bar{position:absolute; left:0; top:3px; bottom:3px; border-radius:0 4px 4px 0;}
+.rank-bar.hi{background:var(--strong);}
+.rank-bar.mid{background:var(--mid);}
+.rank-bar.lo{background:var(--weak);}
+.rank-bar.unreliable{background:var(--mid); opacity:.35;}
+.rank-one{position:absolute; top:-4px; bottom:-4px; width:0; border-left:1.5px dashed var(--signal);}
+.rank-val{font-family:var(--font-mono); font-size:12px; font-weight:600; font-variant-numeric:tabular-nums; white-space:nowrap;}
+.rank-val small{font-weight:400; font-size:10px; color:var(--text-faint); margin-left:6px;}
+@media (max-width:520px){.rank{grid-template-columns:76px 1fr 64px; column-gap:8px;} .rank-val small{display:none;}}
+
+/* group cards */
+.groups{display:flex; flex-direction:column; gap:18px;}
+.group-card{background:var(--bg-panel); border:1px solid var(--border); border-radius:10px; overflow:hidden; scroll-margin-top:16px;}
+.group-head{display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px 14px; padding:13px 18px; border-bottom:1px solid var(--border); background:var(--bg-panel-2);}
+.group-head h3{font-size:15px; font-weight:600; margin:0;}
+.group-head .count{font-family:var(--font-mono); font-size:11px; color:var(--text-dim); margin-left:8px; font-weight:400;}
+.head-chips{display:flex; gap:8px; flex-wrap:wrap;}
+.head-chip{font-size:11px; color:var(--text-dim); display:inline-flex; align-items:center; gap:6px;}
+.table-scroll{overflow-x:auto;}
+table{border-collapse:collapse; width:100%; min-width:620px; font-size:11.5px;}
+thead th{background:var(--bg-panel-2); color:var(--text-dim); font-weight:600; font-size:10px; text-align:center; padding:7px 4px; border-bottom:1px solid var(--border); line-height:1.3;}
+thead th.left{text-align:left; padding-left:14px;}
+thead th .sub{display:block; font-weight:400; color:var(--text-faint); font-size:9.5px;}
+tbody td{padding:5px 4px; text-align:center; border-bottom:1px solid var(--border); font-family:var(--font-mono); font-variant-numeric:tabular-nums;}
+tbody td.left{text-align:left; font-family:var(--font-body); padding-left:14px;}
+tbody tr:last-child td{border-bottom:0;}
+tbody tr:hover{background:rgba(255,255,255,0.02);}
+td.code{color:var(--text-dim); font-size:10.5px; white-space:nowrap; width:64px;}
+td.name{font-weight:600; white-space:nowrap;}
+.stock-link{color:var(--text); text-decoration:none; border-bottom:1px dashed var(--text-faint);}
+.stock-link:hover{color:var(--accent); border-bottom-color:var(--accent);}
+tr.total td{background:var(--bg-panel-2); border-top:1px solid var(--border);}
+tr.total td.name{color:var(--accent);}
+
+.beta{display:inline-block; min-width:52px; padding:3px 6px; border-radius:4px; font-weight:600; border:1px solid var(--border); background:var(--bg-input);}
+.beta.hi{background:var(--strong-bg); border-color:var(--strong-line); color:var(--strong);}
+.beta.lo{background:var(--weak-bg); border-color:var(--weak-line); color:var(--weak);}
+.beta.mid{background:var(--mid-bg); color:var(--text);}
+.beta.unreliable{background:transparent; color:var(--text-faint); border-style:dashed; font-weight:400;}
+.beta.na{background:transparent; color:var(--text-faint); border-color:transparent; font-weight:400;}
+.r2{color:var(--text-dim); font-size:11px;}
+.r2.low{color:var(--text-faint);}
+.delta{font-size:11px; white-space:nowrap;}
+.delta.up{color:var(--strong);}
+.delta.down{color:var(--weak);}
+.delta.flat{color:var(--text-faint);}
+
+/* legend + notes */
+.legend{display:flex; gap:10px 18px; flex-wrap:wrap; padding-top:16px; border-top:1px solid var(--border); font-size:11.5px; color:var(--text-dim);}
+.legend span{display:inline-flex; align-items:center; gap:6px;}
+.legend i{width:10px; height:10px; border-radius:3px; display:inline-block;}
+.notes{font-size:12px; color:var(--text-dim); line-height:1.7; max-width:80ch;}
+.notes h4{font-size:12.5px; color:var(--text); margin:0 0 4px;}
+.notes ul{margin:0; padding-left:18px;}
+.notes code{font-family:var(--font-mono); font-size:11.5px; color:var(--text);}
+@media (prefers-reduced-motion:no-preference){.rank-bar{transition:width .35s ease;}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="hero">
+    <div class="eyebrow">Beta · 族群 x 大盤</div>
+    <h1>族群 x 大盤 Beta 分析</h1>
+    <p>Beta 衡量個股或族群跟著大盤漲跌的幅度。β = 1.3 代表大盤漲 1%，平均約漲 1.3%；β 低於 1 則波動小於大盤。R² 表示這個 β 的解釋力，R² 太低時 β 參考價值有限。</p>
+    <div class="hero-meta">
+      <span id="data-date"></span>
+      <span>更新時間 __GENERATED_AT__</span>
+      <a class="back-link" href="./">← 回均線強弱頁</a>
+    </div>
+  </header>
+
+  <div class="controls" role="group" aria-label="計算條件">
+    <div class="ctl">回看窗口
+      <div class="seg" id="seg-window"></div>
+    </div>
+    <div class="ctl">排行基準
+      <div class="seg" id="seg-bench"></div>
+    </div>
+  </div>
+
+  <section class="bench-row" id="bench-row"></section>
+
+  <section>
+    <div class="section-head">
+      <h2 id="rank-title">族群 Beta 排行</h2>
+      <span class="hint">虛線 = β 1.0（與大盤同步）· 點族群名稱跳到明細</span>
+    </div>
+    <div class="panel"><div class="rank" id="rank"></div></div>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <h2>各族群個股明細</h2>
+      <span class="hint">最下列為族群等權組合的 β · 點股名開走勢圖</span>
+    </div>
+    <div class="groups" id="groups"></div>
+  </section>
+
+  <div class="legend">
+    <span><i style="background:var(--strong)"></i>β ≥ 1.2 高 Beta（攻擊型）</span>
+    <span><i style="background:var(--mid)"></i>0.8 – 1.2 與大盤同步</span>
+    <span><i style="background:var(--weak)"></i>β &lt; 0.8 低 Beta（防禦型）</span>
+    <span><i style="border:1px dashed var(--text-faint)"></i>R² &lt; 0.1 參考性低</span>
+    <span><b style="color:var(--strong)">▲</b>/<b style="color:var(--weak)">▼</b> 近 60 日 β 比 250 日高 / 低 0.1 以上</span>
+  </div>
+
+  <div class="notes">
+    <h4>計算方式</h4>
+    <ul>
+      <li>β = Cov(個股日報酬, 指數日報酬) ÷ Var(指數日報酬)，R² = 兩者相關係數的平方。</li>
+      <li>個股與指數以日期對齊，停牌日不補值；窗口內有效天數不足 80% 時不計算，顯示「—」。</li>
+      <li>族群 β：每日取成員報酬的等權平均，視為一個投資組合再計算。</li>
+      <li>價格來源：FinMind <code>TaiwanStockPrice</code>（未還原），除權息日會有少量雜訊。</li>
+    </ul>
+  </div>
+</div>
+
+<script>
+const DATA = __BETA_JSON__;
+
+const BENCH_LABEL = {twii:"加權", otc:"櫃買"};
+const HI = 1.2, LO = 0.8, MIN_R2 = 0.1, DELTA_FLAG = 0.1;
+const WINDOWS = DATA.windows.map(String);
+const SHORT_W = WINDOWS[0], LONG_W = WINDOWS[WINDOWS.length - 1];
+const BENCH_KEYS = DATA.benchmarks.filter(b => b.stats).map(b => b.key);
+const state = {win: SHORT_W, bench: BENCH_KEYS[0] || "twii"};
+
+const esc = s => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const has = v => v && v.b !== null && v.b !== undefined;
+const zone = v => !has(v) ? "na" : (v.r2 !== null && v.r2 < MIN_R2) ? "unreliable" : v.b >= HI ? "hi" : v.b < LO ? "lo" : "mid";
+const get = (betas, bench, win) => (betas && betas[bench] && betas[bench][win]) || null;
+const fmt = (x, d = 2) => (x === null || x === undefined) ? "—" : Number(x).toFixed(d);
+const label = k => BENCH_LABEL[k] || k;
+
+function betaCell(v){ return `<span class="beta ${zone(v)}">${has(v) ? fmt(v.b) : "—"}</span>`; }
+function r2Cell(v){
+  if (!has(v) || v.r2 === null) return `<span class="r2 low">—</span>`;
+  return `<span class="r2 ${v.r2 < MIN_R2 ? "low" : ""}">${fmt(v.r2)}</span>`;
+}
+function deltaCell(betas){
+  const s = get(betas, state.bench, SHORT_W), l = get(betas, state.bench, LONG_W);
+  if (!has(s) || !has(l)) return `<span class="delta flat">—</span>`;
+  const d = s.b - l.b;
+  if (d >= DELTA_FLAG) return `<span class="delta up">▲ ${d.toFixed(2)}</span>`;
+  if (d <= -DELTA_FLAG) return `<span class="delta down">▼ ${Math.abs(d).toFixed(2)}</span>`;
+  return `<span class="delta flat">— ${d >= 0 ? "+" : "−"}${Math.abs(d).toFixed(2)}</span>`;
+}
+
+function renderControls(){
+  const seg = (id, items, key) => {
+    document.getElementById(id).innerHTML = items.map(([v, text]) =>
+      `<button type="button" data-v="${esc(v)}" aria-pressed="${state[key] === v}">${esc(text)}</button>`).join("");
+  };
+  seg("seg-window", WINDOWS.map(w => [w, `${w} 日`]), "win");
+  seg("seg-bench", BENCH_KEYS.map(k => [k, `對${label(k)}`]), "bench");
+}
+
+function renderBench(){
+  const w = state.win;
+  document.getElementById("bench-row").innerHTML = DATA.benchmarks.map(b => {
+    if (!b.stats) {
+      return `<div class="bench-card"><div class="bench-top"><span class="bench-name">${esc(b.name)}</span></div>
+        <div class="bench-fail">抓取失敗，這次沒有此指數的資料。</div></div>`;
+    }
+    const s = b.stats[w] || {};
+    const c = s.cross || {};
+    const items = [
+      ["年化波動", s.vol === null || s.vol === undefined ? "—" : `${s.vol.toFixed(1)}%`],
+      [c.key ? `對${label(c.key)} β` : "對另一指數 β", fmt(c.b)],
+      ["相關係數", fmt(c.corr)],
+    ];
+    return `<div class="bench-card">
+      <div class="bench-top"><span class="bench-name">${esc(b.name)}</span><span class="bench-date">${esc(b.date)} · ${w} 日</span></div>
+      <div class="bench-stats">${items.map(([k, v]) => `<div class="stat"><div class="k">${k}</div><div class="v">${v}</div></div>`).join("")}</div>
+    </div>`;
+  }).join("");
+}
+
+function renderRank(){
+  const {win, bench} = state;
+  const val = g => get(g.total, bench, win);
+  const sorted = [...DATA.groups].sort((a, b) => {
+    const va = val(a), vb = val(b);
+    if (!has(va)) return has(vb) ? 1 : 0;
+    if (!has(vb)) return -1;
+    return vb.b - va.b;
+  });
+  const vals = sorted.map(val).filter(has).map(v => v.b);
+  const maxB = Math.max(2, Math.ceil(Math.max(0, ...vals) * 2) / 2);
+  const pct = v => (Math.max(0, v) / maxB * 100).toFixed(2) + "%";
+  const ticks = [];
+  for (let t = 0; t <= maxB + 1e-9; t += 0.5) ticks.push(t);
+  document.getElementById("rank-title").textContent = `族群 Beta 排行 · 對${label(bench)} · ${win} 日`;
+  let html = `<div></div><div class="rank-axis">${ticks.map(t => `<span style="left:${pct(t)}">${t.toFixed(1)}</span>`).join("")}</div><div></div>`;
+  for (const g of sorted) {
+    const v = val(g);
+    html += `<a class="rank-name" href="#g-${encodeURIComponent(g.name)}">${esc(g.name)}</a>
+      <div class="rank-track" style="--tick:${(0.5 / maxB * 100).toFixed(3)}%">
+        ${has(v) ? `<div class="rank-bar ${zone(v)}" style="width:${pct(v.b)}"></div>` : ""}
+        <div class="rank-one" style="left:${pct(1)}"></div>
+      </div>
+      <div class="rank-val">${has(v) ? fmt(v.b) : "—"}<small>R² ${has(v) ? fmt(v.r2) : "—"}</small></div>`;
+  }
+  document.getElementById("rank").innerHTML = html;
+}
+
+function renderGroups(){
+  const {win} = state;
+  const benchCols = BENCH_KEYS;
+  document.getElementById("groups").innerHTML = DATA.groups.map(g => {
+    const row = (name, code, betas, isTotal) => `
+      <tr class="${isTotal ? "total" : ""}">
+        <td class="left code">${isTotal ? "" : esc(code)}</td>
+        <td class="left name">${isTotal ? esc(name)
+          : `<a class="stock-link" href="https://www.wantgoo.com/stock/${encodeURIComponent(code)}/technical-chart" target="_blank" rel="noopener">${esc(name)}</a>`}</td>
+        ${benchCols.map(k => `<td>${betaCell(get(betas, k, win))}</td><td>${r2Cell(get(betas, k, win))}</td>`).join("")}
+        <td>${deltaCell(betas)}</td>
+      </tr>`;
+    return `
+    <article class="group-card" id="g-${encodeURIComponent(g.name)}">
+      <div class="group-head">
+        <h3>${esc(g.name)}<span class="count">${g.stocks.length} 檔</span></h3>
+        <div class="head-chips">
+          ${benchCols.map(k => `<span class="head-chip">對${label(k)} ${betaCell(get(g.total, k, win))}</span>`).join("")}
+        </div>
+      </div>
+      <div class="table-scroll"><table>
+        <thead><tr>
+          <th class="left">代號</th><th class="left">名稱</th>
+          ${benchCols.map(k => `<th>對${label(k)} β<span class="sub">${win} 日</span></th><th>R²</th>`).join("")}
+          <th>近期變化<span class="sub">${SHORT_W} 日 − ${LONG_W} 日（對${label(state.bench)}）</span></th>
+        </tr></thead>
+        <tbody>${g.stocks.map(s => row(s.name, s.code, s.betas, false)).join("")}${row("族群組合", "", g.total, true)}</tbody>
+      </table></div>
+    </article>`;
+  }).join("");
+}
+
+function render(){ renderControls(); renderBench(); renderRank(); renderGroups(); }
+
+for (const [id, key] of [["seg-window", "win"], ["seg-bench", "bench"]]) {
+  document.getElementById(id).addEventListener("click", e => {
+    const btn = e.target.closest("button"); if (!btn) return;
+    state[key] = btn.dataset.v;
+    render();
+  });
+}
+document.getElementById("data-date").textContent = DATA.dataDate ? `資料日期 ${DATA.dataDate} 收盤 · 日報酬計算 · 未還原價` : "";
+render();
+</script>
+</body>
+</html>
