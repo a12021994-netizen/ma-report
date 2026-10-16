@@ -1,0 +1,47 @@
+name: Daily Beta Report
+
+on:
+  schedule:
+    # UTC 09:53 = 台灣時間 17:53，週一到週五執行。
+    # 刻意和均線報告（15:27、16:07）錯開，避免 FinMind 免費額度在同一小時內被用完
+    - cron: '53 9 * * 1-5'
+  workflow_dispatch: {}
+
+# 和均線報告用同一個 concurrency group：兩邊都會推送到 docs/，
+# 讓它們排隊依序執行，避免同時推送互相衝突
+concurrency:
+  group: daily-ma-report
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+      - name: setup python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: install packages
+        run: pip install requests pandas
+      - name: run script
+        env:
+          # 選擇性：在 repo 的 Settings → Secrets 新增 FINMIND_TOKEN 可提高 API 額度，沒設定也能跑
+          FINMIND_TOKEN: ${{ secrets.FINMIND_TOKEN }}
+        run: python beta_report.py
+      - name: copy to docs
+        run: |
+          mkdir -p docs
+          cp output/族群Beta分析_*.html docs/beta.html
+      - name: commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs/beta.html
+          git commit -m "update beta" || echo "no changes"
+          git pull --rebase origin "${GITHUB_REF_NAME}"
+          git push
