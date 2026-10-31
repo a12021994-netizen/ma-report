@@ -1,0 +1,50 @@
+name: Daily Margin Report
+
+on:
+  schedule:
+    # UTC 13:43 = 台灣時間 21:43，週一到週五執行。
+    # 證交所 / 櫃買中心的融資融券餘額通常在晚上 21 點左右才公布完整
+    - cron: '43 13 * * 1-5'
+  workflow_dispatch: {}
+
+# 和其他報告共用 concurrency group，依序推送到 docs/，避免互相衝突
+concurrency:
+  group: daily-ma-report
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+      - name: setup python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: install packages
+        run: pip install requests
+      # 過去日期的原始資料不會變，快取起來，之後每天只需要抓最新一天
+      - name: restore data cache
+        uses: actions/cache@v4
+        with:
+          path: margin_cache
+          key: margin-cache-${{ github.run_id }}
+          restore-keys: margin-cache-
+      - name: run script
+        run: python margin_report.py
+      - name: copy to docs
+        run: |
+          mkdir -p docs
+          cp output/融資維持率_*.html docs/margin.html
+      - name: commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs/margin.html
+          git commit -m "update margin" || echo "no changes"
+          git pull --rebase origin "${GITHUB_REF_NAME}"
+          git push
