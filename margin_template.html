@@ -92,6 +92,7 @@ td.name{font-weight:600;}
 .ratio.safe{background:var(--safe-bg); color:var(--safe); border-color:transparent;}
 .up{color:var(--up);} .down{color:var(--down);} .flat{color:var(--text-faint);}
 .low-conf{color:var(--text-faint);}
+.ratio.low-conf{opacity:.55; border-style:dashed;}
 .more[hidden]{display:none;}
 .more{display:flex; justify-content:center; padding:12px;}
 .more button{font:inherit; font-size:12px; font-weight:600; color:var(--accent); background:var(--accent-bg); border:0; border-radius:8px; padding:7px 16px; cursor:pointer;}
@@ -173,7 +174,7 @@ td.name{font-weight:600;}
       <li>資料來源：證交所、櫃買中心每日融資融券餘額與個股行情，回溯約 <span id="lookback"></span> 個交易日。</li>
       <li>觀察期第一天的融資餘額，成本假設為當天成交均價；之後每天賣出、現償部分依平均成本移出，新增部位以當天成交均價計入。</li>
       <li>融資成數：上市 <span id="r-twse"></span>、上櫃 <span id="r-tpex"></span>。個股若被調降成數或停止融資，實際維持率會不同。</li>
-      <li><b>成本換手</b>：目前融資餘額裡，在觀察期間內新買進的比例。比例低代表多數部位是期初就有的，成本推估較不準，以灰字顯示。</li>
+      <li><b>成本換手</b>：目前融資餘額裡，在觀察期間內新買進的比例。比例低於 30% 代表多數部位是期初就有的，成本推估較不準，維持率以虛線框、淡色顯示。</li>
       <li>這是用公開資料估算的整體平均值，個別投資人的維持率依其買進成本而異，僅供參考。</li>
     </ul>
   </div>
@@ -268,7 +269,7 @@ function render(){
         <td class="left code">${esc(r.code)}</td>
         <td class="left name"><a class="stock-link" href="https://www.wantgoo.com/stock/${encodeURIComponent(r.code)}/technical-chart" target="_blank" rel="noopener">${esc(r.name)}</a></td>
         <td class="left"><span class="mkt">${esc(r.market)}</span></td>
-        <td><span class="ratio ${lowConf ? 'ok low-conf' : level(r.ratio)}" title="${lowConf ? '成本換手比例低，推估較不準' : ''}">${fmt(r.ratio, 1)}%</span></td>
+        <td><span class="ratio ${level(r.ratio)}${lowConf ? ' low-conf' : ''}" title="${lowConf ? '成本換手比例低，推估較不準' : ''}">${fmt(r.ratio, 1)}%</span></td>
         <td>${fmt(r.close, 2)}</td>
         <td>${fmt(r.cost, 2)}</td>
         <td>${r.gap >= 0 ? '<span class="up">已跌破</span>' : fmt(r.gap, 1) + '%'}</td>
